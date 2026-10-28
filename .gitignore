@@ -1,0 +1,15 @@
+# Local preparation and safety checks are not part of the public site.
+prepare.py
+scan_public.py
+__pycache__/
+
+# Credentials and deployment-local configuration must never be published.
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+wrangler.toml
+*credentials*
+*secret*
+*.pem
+*.key
