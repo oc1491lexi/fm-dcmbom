@@ -369,6 +369,7 @@ table.grid tbody tr:last-child td{border-bottom:0}
 .dc-sort-rule button:disabled{opacity:.4;cursor:default}
 .dc-add-sort{border:1px solid #b7d2ee;background:#edf5ff;border-radius:8px;padding:8px 11px;color:#175290;cursor:pointer;font-weight:600}
 </style>
+<style>table.grid thead .th-sort{color:#fff;font-size:11px;line-height:1;flex:0 0 auto;margin-left:auto}table.grid thead th:focus-visible{outline:2px solid #ffd166;outline-offset:-2px}</style>
 </head>
 <body>
 <style>
@@ -934,27 +935,29 @@ table.grid tbody tr:last-child td{border-bottom:0}
 
     cols.forEach(function(c){
       var sort = state.sorts[tab.id];
-      var baseSort=(!sort||!sort.cleared)&&effectiveRule(tab,'sorting')[0];
-      var isSort = (sort&&sort.key===c.key)?sort:(baseSort&&baseSort.key===c.key?baseSort:null);
+      var activeRules=sort&&sort.key?[sort]:(sort&&sort.cleared?[]:effectiveRule(tab,'sorting'));
+      var sortIndex=activeRules.findIndex(function(rule){return rule.key===c.key;});
+      var isSort=sortIndex>=0?activeRules[sortIndex]:null;
       var filterActive = (state.filters[tab.id] || {})[c.key] && (state.filters[tab.id] || {})[c.key].length;
-      var th = el('th', { class: c.num ? 'num' : '' });
+      var th = el('th', { class: c.num ? 'num' : '', tabindex:'0' });
+      th.style.cursor='pointer';
+      th.title=isSort?'Sorted '+(isSort.dir>0?'ascending':'descending')+(activeRules.length>1?' (priority '+(sortIndex+1)+')':'')+'; click to reverse':'Click to sort ascending';
+      if(sortIndex===0)th.setAttribute('aria-sort',isSort.dir>0?'ascending':'descending');
+      function activateColumnSort(){
+        var current=state.sorts[tab.id];
+        var dir=current&&current.key===c.key?-current.dir:isSort?-isSort.dir:1;
+        state.sorts[tab.id]={key:c.key,dir:dir};
+        state.pages[tab.id]=1;renderGrid();
+      }
+      th.addEventListener('click',activateColumnSort);
+      th.addEventListener('keydown',function(e){
+        if(e.key==='Enter'||e.key===' '){e.preventDefault();activateColumnSort();}
+      });
       var inner = el('div', { class:'th-inner' });
       inner.appendChild(el('span', { class:'th-label', text:c.label, title:c.label }));
-
+      if(isSort)inner.appendChild(el('span', {class:'th-sort',text:isSort.dir>0?'\u25B2':'\u25BC',
+        title:'Sorted '+(isSort.dir>0?'ascending':'descending') }));
       if (!c.squares){
-        var sortBox = el('span', { class:'th-sort' });
-        sortBox.appendChild(el('span', { class:(isSort && isSort.dir > 0 ? 'on' : ''), text:'\u25B2' }));
-        sortBox.appendChild(el('span', { class:(isSort && isSort.dir < 0 ? 'on' : ''), text:'\u25BC' }));
-        sortBox.style.cursor = 'pointer';
-        sortBox.addEventListener('click', function(e){
-          e.stopPropagation();
-          var cur = state.sorts[tab.id];
-          if (cur && cur.key === c.key) cur.dir = -cur.dir;
-          else state.sorts[tab.id] = { key:c.key, dir:1 };
-          state.pages[tab.id]=1;renderGrid();
-        });
-        inner.appendChild(sortBox);
-
         var fb = el('button', { class:'th-filter' + (filterActive ? ' on' : ''), title:'Filter', text:'\u25BE' });
         fb.addEventListener('click', function(e){
           e.stopPropagation();
