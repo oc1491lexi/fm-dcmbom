@@ -20,4 +20,4 @@ Use `gear=off` for a read-only interface. The Worker still decides write authori
 
 ## Source
 
-This publishable folder contains the generated `index.html`, public `config.js`, and vendored Excel library. The tab strip and table use a rounded card style with softer borders and spacing, based on the supplied visual reference. The Worker source, build transforms, and tests are maintained separately in the local `dcmbom-cloudflare-mock` prototype until a secure Cloudflare deployment is configured.
+This publishable folder contains the generated `index.html`, public `config.js`, and vendored Excel library. The tabs and table retain the rounded card treatment while using the original gray tab and dark-navy header palette. The header filter menu now includes sort, value search, checkbox counts, and bulk selection; the footer includes page size, record range, and page navigation. The Worker source, build transforms, and tests are maintained separately in the local `dcmbom-cloudflare-mock` prototype until a secure Cloudflare deployment is configured.
