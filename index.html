@@ -429,7 +429,7 @@ table.grid tbody tr:last-child td{border-bottom:0}
     <h2 class="dc-card-title">⚡ Settings categories</h2><div class="dc-group-label">⌄ &nbsp; Data Collection</div>
     <button class="dc-cat active" data-category="quarters" type="button"><strong>▣ &nbsp; Quarters</strong><small>Which quarter tabs to display</small></button>
     <button class="dc-cat" data-category="layout" type="button"><strong>◇ &nbsp; Layout Setting</strong><small>Column grouping template</small></button>
-    <button class="dc-cat" data-category="tableviews" type="button"><strong>▤ &nbsp; Table Views</strong><small>Rows, sorting and column sequence</small></button>
+    <button class="dc-cat" data-category="tableviews" type="button"><strong>▤ &nbsp; Table Views</strong><small>Rows, sorting, columns and date format</small></button>
     <button class="dc-cat" data-category="source" type="button"><strong>◈ &nbsp; Data source</strong><small>Connection and permissions</small></button>
    </nav>
    <article class="dc-card">
@@ -453,6 +453,8 @@ table.grid tbody tr:last-child td{border-bottom:0}
            <div id="columnSequenceList" class="dc-sort-list"></div>
            <button class="dc-add-sort" id="addSequenceColumn" type="button">+ Add column attribute</button>
            <p>Listed columns appear first in this order. Columns absent from the selected Layout Setting are skipped; unlisted visible columns follow in layout order.</p></div>
+         <div class="dc-rule-subtree"><h3>↳ Date Format</h3><select id="ruleDateFormat" aria-label="Date format"></select>
+           <p id="ruleDateHint"></p></div>
        </div>
      </section>
      <section id="dcCategorySource" hidden><h4>Cloudflare Worker connection</h4>
@@ -664,13 +666,26 @@ table.grid tbody tr:last-child td{border-bottom:0}
     if (m) return { y:+m[3] + 2000, mo:+m[1], d:+m[2] };
     return null;
   }
-  function fmtDate(v){
+  var DATE_FORMATS = ['dd mmm yy','dd/mm/yyyy','mm/dd/yyyy','yyyy-mm-dd','dd mmm yyyy'];
+  function fmtDate(v, fmt){
     var d = parseDate(v);
     if (!d) return v == null ? '' : String(v);
     var mm = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.mo - 1] || '';
     var dd = d.d < 10 ? '0' + d.d : String(d.d);
-    var yy = String(d.y).slice(2);
-    return dd + ' ' + mm + ' ' + yy;
+    var mo = d.mo < 10 ? '0' + d.mo : String(d.mo);
+    var yyyy = String(d.y);
+    var yy = yyyy.slice(2);
+    switch (DATE_FORMATS.indexOf(fmt) < 0 ? 'dd mmm yy' : fmt) {
+      case 'dd/mm/yyyy': return dd + '/' + mo + '/' + yyyy;
+      case 'mm/dd/yyyy': return mo + '/' + dd + '/' + yyyy;
+      case 'yyyy-mm-dd': return yyyy + '-' + mo + '-' + dd;
+      case 'dd mmm yyyy': return dd + ' ' + mm + ' ' + yyyy;
+      default: return dd + ' ' + mm + ' ' + yy;
+    }
+  }
+  function dateFormatLabel(fmt){
+    var sample = fmtDate('2026-11-03', fmt);
+    return {label: (DATE_FORMATS.indexOf(fmt) < 0 ? 'DD MMM YY' : ['DD MMM YY','DD/MM/YYYY','MM/DD/YYYY','YYYY-MM-DD','DD MMM YYYY'][DATE_FORMATS.indexOf(fmt)]) + ' — ' + sample, sample: sample};
   }
 
   function identityCols(){
@@ -821,9 +836,9 @@ table.grid tbody tr:last-child td{border-bottom:0}
     return rows;
   }
   function defaultTableViewRules(){
-    return {default:{rowsPerPage:20,sorting:[{key:'__reminder',dir:-1},{key:'__submission',dir:-1}],columnSequence:[]},
-      summary:{rowsPerPage:10,sorting:[{key:'Supplier',dir:1}],columnSequence:null},
-      quarters:{rowsPerPage:null,sorting:null,columnSequence:null}};
+    return {default:{rowsPerPage:20,sorting:[{key:'__reminder',dir:-1},{key:'__submission',dir:-1}],columnSequence:[],dateFormat:'dd mmm yy'},
+      summary:{rowsPerPage:10,sorting:[{key:'Supplier',dir:1}],columnSequence:null,dateFormat:null},
+      quarters:{rowsPerPage:null,sorting:null,columnSequence:null,dateFormat:null}};
   }
   function effectiveRule(tab,property){
     var rules=state.tableViewRules||defaultTableViewRules();
@@ -1029,7 +1044,7 @@ table.grid tbody tr:last-child td{border-bottom:0}
 
     /* plain value */
     var display;
-    if (col.date) display = fmtDate(raw);
+    if (col.date) display = fmtDate(raw, effectiveRule(tab,'dateFormat'));
     else if (col.num) display = fmtNum(raw);
     else display = (raw == null ? '' : String(raw));
 
@@ -1063,7 +1078,7 @@ table.grid tbody tr:last-child td{border-bottom:0}
     var prevHtml = host.textContent;
 
     var input = el('input', { class:'inline-input', type: col.edit === 'number' ? 'text' : 'text' });
-    input.value = col.date ? (parseDate(original) ? fmtDate(original) : original) : original;
+    input.value = col.date ? (parseDate(original) ? fmtDate(original, effectiveRule(tab,'dateFormat')) : original) : original;
     if (col.edit === 'number') input.setAttribute('inputmode', 'decimal');
     host.textContent = '';
     host.appendChild(input);
@@ -1396,6 +1411,18 @@ table.grid tbody tr:last-child td{border-bottom:0}
     if(scope==='quarters')keys=keys.filter(function(key){return ![F.onboards,F.erpSpend,F.mbomSpend,F.comment].includes(key);});
     return keys.map(function(key){return {key:key,label:key==='__reminder'?'Reminder_count':key==='__submission'?'Submission_count':key};});
   }
+  function renderDateFormat(){
+    var rule=state.tableViewRules[ruleScope],isDefault=ruleScope==='default';
+    var select=$('#ruleDateFormat');select.innerHTML='';
+    if(!isDefault)select.appendChild(el('option',{value:'inherit',text:'Inherit Default ('+dateFormatLabel(state.tableViewRules.default.dateFormat).sample+')'}));
+    DATE_FORMATS.forEach(function(fmt){
+      var info=dateFormatLabel(fmt);
+      select.appendChild(el('option',{value:fmt,text:info.label}));
+    });
+    select.value=rule.dateFormat==null?'inherit':rule.dateFormat;
+    $('#ruleDateHint').textContent=isDefault?'Used for date columns in every tab unless a group overrides it.':
+      (rule.dateFormat==null?'Using the Default format.':'A specific format replaces Default for this group.');
+  }
   function columnSequenceOptions(scope){
     return sortOptions(scope).map(function(item){return {
       key:item.key,label:item.key==='__reminder'?'Reminder':item.key==='__submission'?'Submission':item.label
@@ -1437,7 +1464,7 @@ table.grid tbody tr:last-child td{border-bottom:0}
   }
   function renderTableViewRules(){
     var scopes=[['default','Default (To All)'],['summary','Spend Summary'],['quarters','Quarters']];
-    renderColumnSequence();
+    renderColumnSequence();renderDateFormat();
     var nav=$('#tableRuleScopes');nav.innerHTML='';
     scopes.forEach(function(item){var b=el('button',{type:'button',text:item[1],class:ruleScope===item[0]?'active':''});
       b.addEventListener('click',function(){ruleScope=item[0];renderTableViewRules();});nav.appendChild(b);});
@@ -1493,7 +1520,7 @@ table.grid tbody tr:last-child td{border-bottom:0}
     });
     var labels={quarters:['Quarters','Select which quarter tabs appear on the DC page.'],
       layout:['Layout Setting','Choose a column grouping template.'],
-      tableviews:['Table Views','Set inherited rows-per-page, sorting and column-sequence rules.'],
+      tableviews:['Table Views','Set inherited rows-per-page, sorting, column-sequence and date-format rules.'],
       source:['Data source','Connection information and access policy.']};
     $('#dcDetailTitle').textContent=labels[category][0];
     $('#dcDetailSubtitle').textContent=labels[category][1];
@@ -1674,6 +1701,9 @@ table.grid tbody tr:last-child td{border-bottom:0}
     $('#btnSettingsSave').addEventListener('click', saveSettings);
     $('#rulePageSize').addEventListener('change',function(){state.tableViewRules[ruleScope].rowsPerPage=this.value==='inherit'?null:Number(this.value);});
     $('#ruleSortMode').addEventListener('change',function(){state.tableViewRules[ruleScope].sorting=this.value==='inherit'?null:[];renderTableViewRules();});
+    $('#ruleDateFormat').addEventListener('change',function(){
+      state.tableViewRules[ruleScope].dateFormat=this.value==='inherit'?null:this.value;renderDateFormat();
+    });
     $('#ruleColumnMode').addEventListener('change',function(){
       state.tableViewRules[ruleScope].columnSequence=this.value==='inherit'?null:[];renderColumnSequence();
     });
