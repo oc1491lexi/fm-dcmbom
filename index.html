@@ -364,7 +364,7 @@ table.grid tbody tr:last-child td{border-bottom:0}
 .dc-rule-subtree p{color:#63768b;font-size:12px;margin:8px 0 0}
 .dc-sort-list{display:grid;gap:8px;margin:11px 0}
 .dc-sort-rule{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:8px;background:#f8fafd;border:1px solid #e2e8f0;border-radius:9px}
-.dc-sort-rule .dc-sort-field{min-width:140px;flex:1 1 175px}.dc-sort-rule .dc-sort-dir{flex:0 1 135px}
+.dc-sort-rule .dc-sequence-field{min-width:140px;flex:1 1 175px}.dc-sort-rule .dc-sort-field{min-width:140px;flex:1 1 175px}.dc-sort-rule .dc-sort-dir{flex:0 1 135px}
 .dc-sort-rule button{border:1px solid #cbd8e6;background:#fff;border-radius:7px;padding:7px;cursor:pointer;color:#375878}
 .dc-sort-rule button:disabled{opacity:.4;cursor:default}
 .dc-add-sort{border:1px solid #b7d2ee;background:#edf5ff;border-radius:8px;padding:8px 11px;color:#175290;cursor:pointer;font-weight:600}
@@ -428,7 +428,7 @@ table.grid tbody tr:last-child td{border-bottom:0}
     <h2 class="dc-card-title">⚡ Settings categories</h2><div class="dc-group-label">⌄ &nbsp; Data Collection</div>
     <button class="dc-cat active" data-category="quarters" type="button"><strong>▣ &nbsp; Quarters</strong><small>Which quarter tabs to display</small></button>
     <button class="dc-cat" data-category="layout" type="button"><strong>◇ &nbsp; Layout Setting</strong><small>Column grouping template</small></button>
-    <button class="dc-cat" data-category="tableviews" type="button"><strong>▤ &nbsp; Table Views</strong><small>Default rows and sorting rules</small></button>
+    <button class="dc-cat" data-category="tableviews" type="button"><strong>▤ &nbsp; Table Views</strong><small>Rows, sorting and column sequence</small></button>
     <button class="dc-cat" data-category="source" type="button"><strong>◈ &nbsp; Data source</strong><small>Connection and permissions</small></button>
    </nav>
    <article class="dc-card">
@@ -448,6 +448,10 @@ table.grid tbody tr:last-child td{border-bottom:0}
            <div id="sortRuleList" class="dc-sort-list"></div>
            <button class="dc-add-sort" id="addSortRule" type="button">+ Add sorting attribute</button>
            <p>Top rule is highest priority. A specific rule overrides Default; Inherit uses Default. An empty custom list means source order.</p></div>
+         <div class="dc-rule-subtree"><h3>↳ Column Sequence</h3><select id="ruleColumnMode" aria-label="Column sequence mode"></select>
+           <div id="columnSequenceList" class="dc-sort-list"></div>
+           <button class="dc-add-sort" id="addSequenceColumn" type="button">+ Add column attribute</button>
+           <p>Listed columns appear first in this order. Columns absent from the selected Layout Setting are skipped; unlisted visible columns follow in layout order.</p></div>
        </div>
      </section>
      <section id="dcCategorySource" hidden><h4>Cloudflare Worker connection</h4>
@@ -572,7 +576,7 @@ table.grid tbody tr:last-child td{border-bottom:0}
     { key:F.escalation, label:'Escalation',    edit:'date' },
     { key:F.status,     label:'Status',        edit:'text' },
     { key:'__submission', label:'Submission',  squares:'green', fields:F.submission },
-    { key:F.copyLastQ,  label:'Copy from last Q', check:true, band:true },
+    { key:F.copyLastQ,  label:'Copy from last Q', check:true },
     { key:F.tat,        label:'TAT',           num:true, edit:'number' },
     { key:F.qtyBoms,    label:'Qty of BOMs',   num:true, edit:'number' },
     { key:F.lexiNote,   label:'Lexi Comment',  comment:true, edit:'text' }
@@ -675,9 +679,16 @@ table.grid tbody tr:last-child td{border-bottom:0}
   function columnsFor(kind){
     var base = identityCols();
     var tail = kind === 'summary' ? SUMMARY_TAIL : QUARTER_TAIL;
-    return base.concat(tail.map(function(c){
+    var cols=base.concat(tail.map(function(c){
       return Object.assign({}, c, { label: c.label || c.key, edit:c.squares||c.check?c.edit:(c.edit||'text') });
     }));
+    var keys=effectiveRule({kind:kind},'columnSequence')||[];
+    var positions=new Map(keys.map(function(key,i){return [key,i];}));
+    return cols.map(function(col,i){return {col:col,index:i};}).sort(function(a,b){
+      var ap=positions.has(a.col.key)?positions.get(a.col.key):keys.length+a.index;
+      var bp=positions.has(b.col.key)?positions.get(b.col.key):keys.length+b.index;
+      return ap-bp;
+    }).map(function(item){return item.col;});
   }
 
   /* ------------------------------------------------ Cloudflare Worker API */
@@ -809,9 +820,9 @@ table.grid tbody tr:last-child td{border-bottom:0}
     return rows;
   }
   function defaultTableViewRules(){
-    return {default:{rowsPerPage:20,sorting:[{key:'__reminder',dir:-1},{key:'__submission',dir:-1}]},
-      summary:{rowsPerPage:10,sorting:[{key:'Supplier',dir:1}]},
-      quarters:{rowsPerPage:null,sorting:null}};
+    return {default:{rowsPerPage:20,sorting:[{key:'__reminder',dir:-1},{key:'__submission',dir:-1}],columnSequence:[]},
+      summary:{rowsPerPage:10,sorting:[{key:'Supplier',dir:1}],columnSequence:null},
+      quarters:{rowsPerPage:null,sorting:null,columnSequence:null}};
   }
   function effectiveRule(tab,property){
     var rules=state.tableViewRules||defaultTableViewRules();
@@ -1382,8 +1393,48 @@ table.grid tbody tr:last-child td{border-bottom:0}
     if(scope==='quarters')keys=keys.filter(function(key){return ![F.onboards,F.erpSpend,F.mbomSpend,F.comment].includes(key);});
     return keys.map(function(key){return {key:key,label:key==='__reminder'?'Reminder_count':key==='__submission'?'Submission_count':key};});
   }
+  function columnSequenceOptions(scope){
+    return sortOptions(scope).map(function(item){return {
+      key:item.key,label:item.key==='__reminder'?'Reminder':item.key==='__submission'?'Submission':item.label
+    };});
+  }
+  function renderColumnSequence(){
+    var rule=state.tableViewRules[ruleScope],isDefault=ruleScope==='default';
+    var mode=$('#ruleColumnMode');mode.innerHTML='';
+    if(!isDefault)mode.appendChild(el('option',{value:'inherit',text:'Inherit Default sequence'}));
+    mode.appendChild(el('option',{value:'custom',text:'Custom column sequence'}));
+    mode.value=rule.columnSequence==null?'inherit':'custom';
+    var list=$('#columnSequenceList');list.innerHTML='';
+    var inherited=rule.columnSequence==null;
+    $('#addSequenceColumn').hidden=inherited;
+    if(inherited){list.appendChild(el('p',{text:'Using the Default column sequence.'}));return;}
+    if(!rule.columnSequence.length)list.appendChild(el('p',{text:'No sequence set — use Layout Setting order.'}));
+    var options=columnSequenceOptions(ruleScope);
+    rule.columnSequence.forEach(function(key,index){
+      var row=el('div',{class:'dc-sort-rule'});
+      row.appendChild(el('span',{text:(index+1)+'.',title:'Column position'}));
+      var field=el('select',{class:'dc-sequence-field','aria-label':'Column attribute '+(index+1)});
+      options.forEach(function(option){field.appendChild(el('option',{value:option.key,text:option.label}));});
+      field.value=key;
+      field.addEventListener('change',function(){
+        if(this.value===key)return;
+        if(rule.columnSequence.includes(this.value)){toast('This column is already in the sequence.',true);this.value=key;return;}
+        rule.columnSequence[index]=this.value;renderColumnSequence();
+      });row.appendChild(field);
+      [['↑',-1],['↓',1]].forEach(function(move){
+        var b=el('button',{type:'button',text:move[0],title:'Move column '+(move[1]<0?'up':'down')});
+        b.disabled=index+move[1]<0||index+move[1]>=rule.columnSequence.length;
+        b.addEventListener('click',function(){var j=index+move[1];[rule.columnSequence[index],rule.columnSequence[j]]=[rule.columnSequence[j],rule.columnSequence[index]];renderColumnSequence();});
+        row.appendChild(b);
+      });
+      var remove=el('button',{type:'button',text:'Remove'});
+      remove.addEventListener('click',function(){rule.columnSequence.splice(index,1);renderColumnSequence();});row.appendChild(remove);
+      list.appendChild(row);
+    });
+  }
   function renderTableViewRules(){
     var scopes=[['default','Default (To All)'],['summary','Spend Summary'],['quarters','Quarters']];
+    renderColumnSequence();
     var nav=$('#tableRuleScopes');nav.innerHTML='';
     scopes.forEach(function(item){var b=el('button',{type:'button',text:item[1],class:ruleScope===item[0]?'active':''});
       b.addEventListener('click',function(){ruleScope=item[0];renderTableViewRules();});nav.appendChild(b);});
@@ -1439,7 +1490,7 @@ table.grid tbody tr:last-child td{border-bottom:0}
     });
     var labels={quarters:['Quarters','Select which quarter tabs appear on the DC page.'],
       layout:['Layout Setting','Choose a column grouping template.'],
-      tableviews:['Table Views','Set inherited rows-per-page and ordered sorting rules.'],
+      tableviews:['Table Views','Set inherited rows-per-page, sorting and column-sequence rules.'],
       source:['Data source','Connection information and access policy.']};
     $('#dcDetailTitle').textContent=labels[category][0];
     $('#dcDetailSubtitle').textContent=labels[category][1];
@@ -1620,6 +1671,15 @@ table.grid tbody tr:last-child td{border-bottom:0}
     $('#btnSettingsSave').addEventListener('click', saveSettings);
     $('#rulePageSize').addEventListener('change',function(){state.tableViewRules[ruleScope].rowsPerPage=this.value==='inherit'?null:Number(this.value);});
     $('#ruleSortMode').addEventListener('change',function(){state.tableViewRules[ruleScope].sorting=this.value==='inherit'?null:[];renderTableViewRules();});
+    $('#ruleColumnMode').addEventListener('change',function(){
+      state.tableViewRules[ruleScope].columnSequence=this.value==='inherit'?null:[];renderColumnSequence();
+    });
+    $('#addSequenceColumn').addEventListener('click',function(){
+      var sequence=state.tableViewRules[ruleScope].columnSequence,options=columnSequenceOptions(ruleScope);
+      var choice=options.find(function(option){return !sequence.includes(option.key);});
+      if(!choice){toast('All available columns are already listed.');return;}
+      sequence.push(choice.key);renderColumnSequence();
+    });
     $('#addSortRule').addEventListener('click',function(){
       var rules=state.tableViewRules[ruleScope].sorting,options=sortOptions(ruleScope);
       var key=options.find(function(option){return !rules.some(function(rule){return rule.key===option.key;});});
