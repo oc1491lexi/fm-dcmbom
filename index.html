@@ -296,6 +296,42 @@
 .dc-date-actions{display:flex;justify-content:flex-end;gap:9px;border-top:1px solid #e0e6ee;padding:13px 21px}
 .squares.cell-edit{cursor:pointer;outline-offset:4px}.squares.cell-edit:hover{outline:1px solid #2f6fed}
 </style>
+<style>
+/* DCMBOM: rounded tabs and a calm table card, inspired by the supplied reference. */
+#dcPage{background:#f4f7fb;gap:0}
+.tabstrip{margin:16px 18px 0;padding:5px;gap:5px;max-width:calc(100% - 36px);align-self:stretch;
+  background:#e8eef6;border:1px solid #dae3ee;border-radius:13px;overflow-x:auto;overflow-y:hidden;
+  scrollbar-width:thin;box-shadow:inset 0 1px 2px #203b5710}
+.tab{flex:1 0 auto;min-width:118px;max-width:225px;padding:10px 16px;border:1px solid transparent;
+  border-radius:10px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;
+  transition:background .15s ease,color .15s ease,box-shadow .15s ease}
+.tab:hover{background:#f8fbff;color:#20466d}
+.tab.active{margin-bottom:0;padding-bottom:10px;background:#fff;color:#184c83;border-color:#d2dfed;
+  box-shadow:0 2px 6px #1e38521c}
+.tab:focus-visible{outline:2px solid #2f6fed;outline-offset:-3px}
+.gridwrap{margin:12px 18px 18px;border:1px solid #dce5ef;border-radius:16px;
+  box-shadow:0 3px 16px #203b5712;background:#fff;min-width:0}
+.dc-table-tools{border-radius:15px 15px 0 0;padding:13px 16px;background:#fff;border-bottom-color:#e5ebf2}
+.dc-table-tools .search{border-radius:9px;background:#fbfcfe;border-color:#d5e0eb}
+.dc-table-tools .search:focus{outline:2px solid #80b4ed;outline-offset:1px}
+.dc-table-tools .btn{border-radius:9px;background:#fff}
+.scroller{border-radius:0 0 15px 15px}
+table.grid thead th{background:#edf3fa;color:#29445f;border-right:1px solid #dde7f0;border-bottom:1px solid #dce6f0;height:40px}
+table.grid thead th:first-child{border-top-left-radius:8px}
+table.grid thead th:last-child{border-top-right-radius:8px}
+.th-inner{height:40px;padding:0 11px}
+.th-sort{color:#91a5b8}.th-sort .on{color:#276db4}
+.th-filter{color:#547493;border-radius:6px}.th-filter:hover{background:#dbeafb;color:#174e84}.th-filter.on{color:#ac6e07}
+table.grid tbody td{height:37px;padding:8px 11px;border-bottom:1px solid #e9eef4;border-right-color:#f0f3f7}
+table.grid tbody tr:nth-child(even) td{background:#f9fbfd}
+table.grid tbody tr:hover td{background:#eef5fd}
+table.grid tbody tr:last-child td{border-bottom:0}
+table.grid tbody tr:last-child td:first-child{border-bottom-left-radius:14px}
+table.grid tbody tr:last-child td:last-child{border-bottom-right-radius:14px}
+@media(max-width:650px){.tabstrip{margin:10px 10px 0;max-width:calc(100% - 20px)}
+  .tab{min-width:110px;max-width:none;padding:9px 12px}.gridwrap{margin:10px;border-radius:12px}
+  .dc-table-tools{border-radius:11px 11px 0 0;padding:10px}.scroller{border-radius:0 0 11px 11px}}
+</style>
 </head>
 <body>
 <style>
