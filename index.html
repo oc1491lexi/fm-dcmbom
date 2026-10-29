@@ -283,7 +283,7 @@
 .dc-col-menu[hidden]{display:none}.dc-col-menu label{display:flex;gap:9px;align-items:center;padding:6px 7px;cursor:pointer}
 .dc-col-menu label:hover{background:#f4f7fb}.dc-col-menu .dc-menu-heading{font-weight:700;padding:5px 8px;border-bottom:1px solid #e1e6ed}
 .dc-tools-wrap{position:relative;flex:0 0 auto}.dc-edit-on{background:#fff7e8!important}.dc-pending{box-shadow:inset 0 -2px #e3a02d}
-#btnEdit[hidden],.dc-table-tools .btn[hidden]{display:none!important}
+#btnEdit[hidden],#btnGear[hidden],.dc-table-tools .btn[hidden]{display:none!important}
 @media(max-width:650px){.dc-table-tools .search{width:100%}.dc-tool-grow{display:none}}
 </style>
 <style>
@@ -356,6 +356,23 @@ table.grid tbody tr:last-child td:last-child{border-bottom-right-radius:14px}
 .dc-pagination button{cursor:pointer;min-width:34px}.dc-pagination button:disabled{opacity:.4;cursor:default}
 .dc-pagination .page-nav{display:flex;align-items:center;gap:5px}.dc-pagination .page-range{margin-right:8px;white-space:nowrap}
 </style>
+<style>
+.dc-rule-scope{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 17px}
+.dc-rule-scope button{border:1px solid #cbd8e6;border-radius:9px;background:#fff;color:#274562;padding:9px 12px;cursor:pointer;font-weight:600}
+.dc-rule-scope button.active{background:#e5f0ff;border-color:#2f6fed;color:#164f90}
+.dc-rule-tree{border:1px solid #dce4ed;border-radius:12px;overflow:hidden;background:#fff}
+.dc-rule-heading{padding:13px 16px;font-size:16px;font-weight:700;background:#f3f7fc;border-bottom:1px solid #dce4ed;color:#173653}
+.dc-rule-subtree{padding:15px 17px;border-bottom:1px solid #e5ebf1}
+.dc-rule-subtree:last-child{border-bottom:0}.dc-rule-subtree h3{margin:0 0 9px;font-size:14px;color:#264765}
+.dc-rule-subtree select{border:1px solid #cbd8e6;border-radius:8px;padding:7px 9px;background:#fff;color:#243d56;max-width:100%;font:inherit}
+.dc-rule-subtree p{color:#63768b;font-size:12px;margin:8px 0 0}
+.dc-sort-list{display:grid;gap:8px;margin:11px 0}
+.dc-sort-rule{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:8px;background:#f8fafd;border:1px solid #e2e8f0;border-radius:9px}
+.dc-sort-rule .dc-sort-field{min-width:140px;flex:1 1 175px}.dc-sort-rule .dc-sort-dir{flex:0 1 135px}
+.dc-sort-rule button{border:1px solid #cbd8e6;background:#fff;border-radius:7px;padding:7px;cursor:pointer;color:#375878}
+.dc-sort-rule button:disabled{opacity:.4;cursor:default}
+.dc-add-sort{border:1px solid #b7d2ee;background:#edf5ff;border-radius:8px;padding:8px 11px;color:#175290;cursor:pointer;font-weight:600}
+</style>
 </head>
 <body>
 <style>
@@ -415,6 +432,7 @@ table.grid tbody tr:last-child td:last-child{border-bottom-right-radius:14px}
     <h2 class="dc-card-title">⚡ Settings categories</h2><div class="dc-group-label">⌄ &nbsp; Data Collection</div>
     <button class="dc-cat active" data-category="quarters" type="button"><strong>▣ &nbsp; Quarters</strong><small>Which quarter tabs to display</small></button>
     <button class="dc-cat" data-category="layout" type="button"><strong>◇ &nbsp; Layout Setting</strong><small>Column grouping template</small></button>
+    <button class="dc-cat" data-category="tableviews" type="button"><strong>▤ &nbsp; Table Views</strong><small>Default rows and sorting rules</small></button>
     <button class="dc-cat" data-category="source" type="button"><strong>◈ &nbsp; Data source</strong><small>Connection and permissions</small></button>
    </nav>
    <article class="dc-card">
@@ -424,6 +442,18 @@ table.grid tbody tr:last-child td:last-child{border-bottom-right-radius:14px}
        <div class="rowbtns"><button class="btn" id="btnShowAll">Show all</button><button class="btn" id="btnHideAll">Hide all</button></div>
        <div class="hint">Spend Summary is always visible. At least one quarter stays visible.</div></section>
      <section id="dcCategoryLayout" hidden><h4>Layout Setting</h4><div class="tpl" id="tplList"></div></section>
+     <section id="dcCategoryTableviews" hidden>
+       <h4>Rules apply to</h4>
+       <div class="dc-rule-scope" id="tableRuleScopes" role="group" aria-label="Table rule scope"></div>
+       <div class="dc-rule-tree"><div id="tableRuleHeading" class="dc-rule-heading"></div>
+         <div class="dc-rule-subtree"><h3>↳ Rows Per Page</h3><select id="rulePageSize" aria-label="Default rows per page"></select>
+           <p id="rulePageHint"></p></div>
+         <div class="dc-rule-subtree"><h3>↳ Sorting</h3><select id="ruleSortMode" aria-label="Sorting mode"></select>
+           <div id="sortRuleList" class="dc-sort-list"></div>
+           <button class="dc-add-sort" id="addSortRule" type="button">+ Add sorting attribute</button>
+           <p>Top rule is highest priority. A specific rule overrides Default; Inherit uses Default. An empty custom list means source order.</p></div>
+       </div>
+     </section>
      <section id="dcCategorySource" hidden><h4>Cloudflare Worker connection</h4>
        <div class="dc-note">This page fetches data through a Cloudflare Worker. FileMaker credentials are held by the Worker, not editable or displayed here. The gear URL flag only requests UI visibility; manager authorisation is checked by the Worker for settings changes.</div></section>
     </div>
@@ -559,6 +589,7 @@ table.grid tbody tr:last-child td:last-child{border-bottom-right-radius:14px}
     quarters:  [],     // [{id,label,year,q,count}]
     visible:   {},     // quarterId -> bool
     template:  3,
+    tableViewRules: defaultTableViewRules(),
     tabs:      [],
     active:    'summary',
     cache:     {},     // tabId -> {key, columns, rows, total}
@@ -677,7 +708,7 @@ table.grid tbody tr:last-child td:last-child{border-bottom-right-radius:14px}
   }
   function runScript(name,param){
     if(name===CFG.scripts.savePrefs){var p=JSON.parse(param);return api('/api/prefs','POST',{
-      hiddenQuarters:p.hiddenQuarters?p.hiddenQuarters.split('\n'):[],groupingTpl:p.groupingTpl
+      hiddenQuarters:p.hiddenQuarters?p.hiddenQuarters.split('\n'):[],groupingTpl:p.groupingTpl,tableViewRules:p.tableViewRules
     });}
     if(name===CFG.scripts.close){window.close();return Promise.resolve();}
     return Promise.reject(new Error('Unknown operation'));
@@ -763,21 +794,34 @@ table.grid tbody tr:last-child td:last-child{border-bottom-right-radius:14px}
         return String(va == null ? '' : va).localeCompare(String(vb == null ? '' : vb), undefined, { numeric:true }) * s.dir;
       });
     } else if(!s || !s.cleared){
-      // Default order is based on source fields; a user sort temporarily overrides it.
-      rows = rows.slice().sort(function(a,b){
-        if(tab.kind === 'summary'){
-          var status = String(cellRaw(b,F.onboards)||'').localeCompare(String(cellRaw(a,F.onboards)||''),undefined,{numeric:true});
-          return status || String(cellRaw(a,F.supplier)||'').localeCompare(String(cellRaw(b,F.supplier)||''),undefined,{numeric:true});
+      var rules=effectiveRule(tab,'sorting');
+      var allowed=new Set(sortOptions(tab.kind==='summary'?'summary':'quarters').map(function(option){return option.key;}));
+      var applicable=(rules||[]).filter(function(rule){return allowed.has(rule.key);});
+      if(applicable.length)rows=rows.slice().sort(function(a,b){
+        for(var i=0;i<applicable.length;i++){
+          var rule=applicable[i],col=c.columns.find(function(x){return x.key===rule.key;})||{};
+          var va=cellRaw(a,rule.key),vb=cellRaw(b,rule.key),cmp;
+          if(col.num||col.date){
+            var na=col.date?dateSortKey(va):toNum(va),nb=col.date?dateSortKey(vb):toNum(vb);
+            cmp=na-nb;
+          }else cmp=String(va??'').localeCompare(String(vb??''),undefined,{numeric:true});
+          if(cmp)return cmp*rule.dir;
         }
-        var remindersA=F.reminder.filter(function(k){return notEmpty(a.fieldData[k]);}).length;
-        var remindersB=F.reminder.filter(function(k){return notEmpty(b.fieldData[k]);}).length;
-        if(remindersA!==remindersB)return remindersB-remindersA;
-        var submissionsA=F.submission.filter(function(k){return notEmpty(a.fieldData[k]);}).length;
-        var submissionsB=F.submission.filter(function(k){return notEmpty(b.fieldData[k]);}).length;
-        return submissionsB-submissionsA;
+        return 0;
       });
     }
     return rows;
+  }
+  function defaultTableViewRules(){
+    return {default:{rowsPerPage:20,sorting:[{key:'__reminder',dir:-1},{key:'__submission',dir:-1}]},
+      summary:{rowsPerPage:10,sorting:[{key:'Supplier',dir:1}]},
+      quarters:{rowsPerPage:null,sorting:null}};
+  }
+  function effectiveRule(tab,property){
+    var rules=state.tableViewRules||defaultTableViewRules();
+    var scope=tab.kind==='summary'?'summary':'quarters';
+    var specific=rules[scope]&&rules[scope][property];
+    return specific==null?rules.default[property]:specific;
   }
   function pageInfo(total,size,requested){
     size=Math.max(1,Number(size)||10);
@@ -859,14 +903,14 @@ table.grid tbody tr:last-child td:last-child{border-bottom-right-radius:14px}
 
     var cols = cached.columns.filter(function(c){return (state.hiddenCols[tab.id]||[]).indexOf(c.key)===-1;});
     var rows = filteredRows(tab);
-    var page = pageInfo(rows.length, state.pageSizes[tab.id] || 10, state.pages[tab.id] || 1);
+    var page = pageInfo(rows.length, state.pageSizes[tab.id] || effectiveRule(tab,'rowsPerPage') || 10, state.pages[tab.id] || 1);
     state.pages[tab.id] = page.number;
     renderPagination(page);
     $('#tableSearch').value=state.searches[tab.id]||'';
     $('#btnEdit').textContent=state.editMode?'Save':'Edit';
     $('#btnCancelEdit').hidden=!state.editMode;
     $('#btnClear').hidden=!Object.keys(state.filters[tab.id]||{}).some(function(key){return Array.isArray(state.filters[tab.id][key]);});
-    $('#btnClearSorting').hidden=!!(state.sorts[tab.id] && state.sorts[tab.id].cleared);
+    $('#btnClearSorting').hidden=!!(state.sorts[tab.id]&&state.sorts[tab.id].cleared)||!(state.sorts[tab.id]&&state.sorts[tab.id].key)&&!effectiveRule(tab,'sorting').length;
     if(!$('#columnMenu').hidden) renderColumns();
 
     if (!rows.length){
@@ -883,7 +927,8 @@ table.grid tbody tr:last-child td:last-child{border-bottom-right-radius:14px}
 
     cols.forEach(function(c){
       var sort = state.sorts[tab.id];
-      var isSort = sort && sort.key === c.key;
+      var baseSort=(!sort||!sort.cleared)&&effectiveRule(tab,'sorting')[0];
+      var isSort = (sort&&sort.key===c.key)?sort:(baseSort&&baseSort.key===c.key?baseSort:null);
       var filterActive = (state.filters[tab.id] || {})[c.key] && (state.filters[tab.id] || {})[c.key].length;
       var th = el('th', { class: c.num ? 'num' : '' });
       var inner = el('div', { class:'th-inner' });
@@ -891,8 +936,8 @@ table.grid tbody tr:last-child td:last-child{border-bottom-right-radius:14px}
 
       if (!c.squares){
         var sortBox = el('span', { class:'th-sort' });
-        sortBox.appendChild(el('span', { class:(isSort && sort.dir > 0 ? 'on' : ''), text:'\u25B2' }));
-        sortBox.appendChild(el('span', { class:(isSort && sort.dir < 0 ? 'on' : ''), text:'\u25BC' }));
+        sortBox.appendChild(el('span', { class:(isSort && isSort.dir > 0 ? 'on' : ''), text:'\u25B2' }));
+        sortBox.appendChild(el('span', { class:(isSort && isSort.dir < 0 ? 'on' : ''), text:'\u25BC' }));
         sortBox.style.cursor = 'pointer';
         sortBox.addEventListener('click', function(e){
           e.stopPropagation();
@@ -1331,33 +1376,88 @@ table.grid tbody tr:last-child td:last-child{border-bottom-right-radius:14px}
     if (!$('#dcSettings').hidden) openSettings();
   }
 
+  var ruleScope='default';
+  function sortOptions(scope){
+    var keys=[...new Set([F.company,F.site,F.division,F.productFam,F.supplier,F.supLoc,F.supCountry,
+      F.onboards,F.erpSpend,F.mbomSpend,F.qtyBoms,F.comment,F.reqDate,F.reqDue,
+      '__reminder',F.escalation,F.status,'__submission',F.copyLastQ,F.tat,F.lexiNote])];
+    if(scope==='summary')keys=keys.filter(function(key){return key!=='__reminder'&&key!=='__submission'&&
+      ![F.reqDate,F.reqDue,F.escalation,F.status,F.copyLastQ,F.tat,F.lexiNote].includes(key);});
+    if(scope==='quarters')keys=keys.filter(function(key){return ![F.onboards,F.erpSpend,F.mbomSpend,F.comment].includes(key);});
+    return keys.map(function(key){return {key:key,label:key==='__reminder'?'Reminder_count':key==='__submission'?'Submission_count':key};});
+  }
+  function renderTableViewRules(){
+    var scopes=[['default','Default (To All)'],['summary','Spend Summary'],['quarters','Quarters']];
+    var nav=$('#tableRuleScopes');nav.innerHTML='';
+    scopes.forEach(function(item){var b=el('button',{type:'button',text:item[1],class:ruleScope===item[0]?'active':''});
+      b.addEventListener('click',function(){ruleScope=item[0];renderTableViewRules();});nav.appendChild(b);});
+    $('#tableRuleHeading').textContent=scopes.find(function(x){return x[0]===ruleScope;})[1];
+    var rule=state.tableViewRules[ruleScope],isDefault=ruleScope==='default';
+    var size=$('#rulePageSize');size.innerHTML='';
+    if(!isDefault)size.appendChild(el('option',{value:'inherit',text:'Inherit Default ('+state.tableViewRules.default.rowsPerPage+')'}));
+    [5,10,20,50,100].forEach(function(n){size.appendChild(el('option',{value:String(n),text:String(n)}));});
+    size.value=rule.rowsPerPage==null?'inherit':String(rule.rowsPerPage);
+    $('#rulePageHint').textContent=isDefault?'Applies to all tabs unless overridden.':'A specific value replaces Default for this group.';
+    var mode=$('#ruleSortMode');mode.innerHTML='';
+    if(!isDefault)mode.appendChild(el('option',{value:'inherit',text:'Inherit Default sorting'}));
+    mode.appendChild(el('option',{value:'custom',text:'Custom sorting rules'}));
+    mode.value=rule.sorting==null?'inherit':'custom';
+    var list=$('#sortRuleList');list.innerHTML='';
+    var inherited=rule.sorting==null;
+    $('#addSortRule').hidden=inherited;
+    if(inherited){list.appendChild(el('p',{text:'Using the Default sorting rules.'}));return;}
+    if(!rule.sorting.length)list.appendChild(el('p',{text:'No sorting — source order.'}));
+    var options=sortOptions(ruleScope);
+    rule.sorting.forEach(function(item,index){
+      var row=el('div',{class:'dc-sort-rule'});
+      row.appendChild(el('span',{text:(index+1)+'.',title:'Sort priority'}));
+      var field=el('select',{class:'dc-sort-field','aria-label':'Sort attribute '+(index+1)});
+      options.forEach(function(option){field.appendChild(el('option',{value:option.key,text:option.label}));});
+      field.value=item.key;field.addEventListener('change',function(){
+        if(rule.sorting.some(function(other){return other!==item&&other.key===field.value;})){
+          toast('This attribute already has a sorting rule.',true);field.value=item.key;return;
+        }
+        item.key=this.value;
+      });row.appendChild(field);
+      var dir=el('select',{class:'dc-sort-dir','aria-label':'Sort direction '+(index+1)});
+      dir.appendChild(el('option',{value:'1',text:'Ascending'}));dir.appendChild(el('option',{value:'-1',text:'Descending'}));
+      dir.value=String(item.dir);dir.addEventListener('change',function(){item.dir=Number(this.value);});row.appendChild(dir);
+      [['↑',-1],['↓',1]].forEach(function(move){var b=el('button',{type:'button',text:move[0],title:'Move rule '+(move[1]<0?'up':'down')});
+        b.disabled=index+move[1]<0||index+move[1]>=rule.sorting.length;
+        b.addEventListener('click',function(){var j=index+move[1];[rule.sorting[index],rule.sorting[j]]=[rule.sorting[j],rule.sorting[index]];renderTableViewRules();});row.appendChild(b);});
+      var remove=el('button',{type:'button',text:'Remove'});remove.addEventListener('click',function(){rule.sorting.splice(index,1);renderTableViewRules();});row.appendChild(remove);
+      list.appendChild(row);
+    });
+  }
   var settingsOriginal=null, activeCategory='quarters';
   function showCategory(category){
-    if(['quarters','layout','source'].indexOf(category)<0) return;
+    if(['quarters','layout','tableviews','source'].indexOf(category)<0) return;
+    if(category==='tableviews') renderTableViewRules();
     activeCategory=category;
     document.querySelectorAll('.dc-cat').forEach(function(button){
       var selected=button.dataset.category===category;
       button.classList.toggle('active',selected);button.setAttribute('aria-current',selected?'page':'false');
     });
-    ['Quarters','Layout','Source'].forEach(function(key){
+    ['Quarters','Layout','Tableviews','Source'].forEach(function(key){
       $('#dcCategory'+key).hidden=key.toLowerCase()!==category;
     });
     var labels={quarters:['Quarters','Select which quarter tabs appear on the DC page.'],
       layout:['Layout Setting','Choose a column grouping template.'],
+      tableviews:['Table Views','Set inherited rows-per-page and ordered sorting rules.'],
       source:['Data source','Connection information and access policy.']};
     $('#dcDetailTitle').textContent=labels[category][0];
     $('#dcDetailSubtitle').textContent=labels[category][1];
   }
   function leaveSettings(discard){
-    if(discard && settingsOriginal){state.visible=settingsOriginal.visible;state.template=settingsOriginal.template;}
+    if(discard && settingsOriginal){state.visible=settingsOriginal.visible;state.template=settingsOriginal.template;state.tableViewRules=settingsOriginal.tableViewRules;}
     settingsOriginal=null;$('#dcSettings').hidden=true;$('#dcPage').hidden=false;
   }
   function saveSettings(){
     if(!state.user.canManage || !gearRequested) return;
     var hidden=state.quarters.filter(function(q){return !state.visible[q.id];}).map(function(q){return q.id;});
     var save=$('#btnSettingsSave');save.disabled=true;
-    runScript(CFG.scripts.savePrefs,JSON.stringify({hiddenQuarters:hidden.join('\n'),groupingTpl:state.template}))
-      .then(function(){state.cache={};state.hiddenCols={};state.active='summary';buildTabs();renderTabs();renderGrid();leaveSettings(false);toast('Settings saved');})
+    runScript(CFG.scripts.savePrefs,JSON.stringify({hiddenQuarters:hidden.join('\n'),groupingTpl:state.template,tableViewRules:state.tableViewRules}))
+      .then(function(){state.cache={};state.hiddenCols={};state.sorts={};state.pages={};state.pageSizes={};state.active='summary';buildTabs();renderTabs();renderGrid();leaveSettings(false);toast('Settings saved');})
       .catch(function(e){toast('Could not save settings: '+(e.message||e),true);})
       .finally(function(){save.disabled=false;});
   }
@@ -1444,6 +1544,7 @@ table.grid tbody tr:last-child td:last-child{border-bottom-right-radius:14px}
     var prefsPromise = runScriptGet(CFG.scripts.getPrefs, null).then(function(res){
       if (res && typeof res === 'object'){
         if (res.groupingTpl) state.template = Number(res.groupingTpl) || 3;
+        if (res.tableViewRules) state.tableViewRules = res.tableViewRules;
       }
       return res || {};
     }).catch(function(){ return {}; });
@@ -1506,11 +1607,11 @@ table.grid tbody tr:last-child td:last-child{border-bottom-right-radius:14px}
     $('#btnClear').addEventListener('click',clearFilters);
     $('#btnColumns').addEventListener('click',function(){var menu=$('#columnMenu');menu.hidden=!menu.hidden;this.setAttribute('aria-expanded',String(!menu.hidden));if(!menu.hidden)renderColumns();});
     document.addEventListener('click',function(e){if(!e.target.closest('.dc-tools-wrap'))closeColumns();});
-    $('#btnGear').addEventListener('click', function(){if(state.user.canManage && gearRequested){settingsOriginal={visible:Object.assign({},state.visible),template:state.template};openSettings();}});
+    $('#btnGear').addEventListener('click', function(){if(state.user.canManage && gearRequested){settingsOriginal={visible:Object.assign({},state.visible),template:state.template,tableViewRules:JSON.parse(JSON.stringify(state.tableViewRules))};openSettings();}});
     $('#btnClose').addEventListener('click', function(){
       accessToken=''; state.hasBridge=false; state.cache={}; state.loading={}; state.pending={};
       state.editMode=false; state.editing=null; state.user={account:'',privilegeSet:'',canManage:false};
-      state.quarters=[]; state.tabs=[]; state.visible={}; state.filters={}; state.sorts={}; state.searches={}; state.hiddenCols={}; state.pages={}; state.pageSizes={};
+      state.quarters=[]; state.tabs=[]; state.visible={}; state.filters={}; state.sorts={}; state.searches={}; state.hiddenCols={}; state.pages={}; state.pageSizes={}; state.tableViewRules=defaultTableViewRules();
       closeDateEditor(); closeColumns(); $('#dcSettings').hidden=true; $('#dcPage').hidden=false;
       $('#btnEdit').hidden=true; $('#btnCancelEdit').hidden=true; $('#btnGear').hidden=true;
       $('#gridhost').innerHTML=''; $('#tabstrip').innerHTML=''; $('#authGate').hidden=false;
@@ -1521,6 +1622,14 @@ table.grid tbody tr:last-child td:last-child{border-bottom-right-radius:14px}
     $('#btnBackDC').addEventListener('click',function(){leaveSettings(true);});
     document.querySelectorAll('.dc-cat').forEach(function(button){button.addEventListener('click',function(){showCategory(button.dataset.category);});});
     $('#btnSettingsSave').addEventListener('click', saveSettings);
+    $('#rulePageSize').addEventListener('change',function(){state.tableViewRules[ruleScope].rowsPerPage=this.value==='inherit'?null:Number(this.value);});
+    $('#ruleSortMode').addEventListener('change',function(){state.tableViewRules[ruleScope].sorting=this.value==='inherit'?null:[];renderTableViewRules();});
+    $('#addSortRule').addEventListener('click',function(){
+      var rules=state.tableViewRules[ruleScope].sorting,options=sortOptions(ruleScope);
+      var key=options.find(function(option){return !rules.some(function(rule){return rule.key===option.key;});});
+      if(!key){toast('All sortable columns have rules.');return;}
+      rules.push({key:key.key,dir:1});renderTableViewRules();
+    });
     $('#popApply').addEventListener('click',applyPop);
     $('#popClose').addEventListener('click',closePop);
     $('#popAsc').addEventListener('click',function(){sortFromPop(1);});
@@ -1531,7 +1640,7 @@ table.grid tbody tr:last-child td:last-child{border-bottom-right-radius:14px}
     $('#pageFirst').addEventListener('click',function(){changePage(1);});
     $('#pagePrev').addEventListener('click',function(){changePage((state.pages[state.active]||1)-1);});
     $('#pageNext').addEventListener('click',function(){changePage((state.pages[state.active]||1)+1);});
-    $('#pageLast').addEventListener('click',function(){changePage(pageInfo(filteredRows(state.tabs.find(function(t){return t.id===state.active;})).length,state.pageSizes[state.active]||10,1).pages);});
+    $('#pageLast').addEventListener('click',function(){changePage(pageInfo(filteredRows(state.tabs.find(function(t){return t.id===state.active;})).length,state.pageSizes[state.active]||effectiveRule(state.tabs.find(function(t){return t.id===state.active;}),'rowsPerPage')||10,1).pages);});
     document.addEventListener('click', function(e){
       var pop = $('#pop');
       if (!pop.classList.contains('open')) return;
