@@ -369,7 +369,7 @@ table.grid tbody tr:last-child td{border-bottom:0}
 .dc-sort-rule button:disabled{opacity:.4;cursor:default}
 .dc-add-sort{border:1px solid #b7d2ee;background:#edf5ff;border-radius:8px;padding:8px 11px;color:#175290;cursor:pointer;font-weight:600}
 </style>
-<style>table.grid thead .th-sort{color:#fff;font-size:11px;line-height:1;flex:0 0 auto;margin-left:auto}table.grid thead th:focus-visible{outline:2px solid #ffd166;outline-offset:-2px}</style>
+<style>table.grid thead .th-sort{color:#fff;font-size:11px;line-height:1;flex:0 0 auto;margin-left:auto}table.grid thead th:focus-visible{outline:2px solid #ffd166;outline-offset:-2px}.dc-datefmt{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.dc-datefmt input{min-width:170px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:7px;font:inherit;letter-spacing:.4px}.dc-datefmt input[aria-invalid=true]{border-color:#c2410c;background:#fff7ed}.dc-datefmt-sample{color:#4a5f76;font-size:12px}.dc-datefmt-sample.is-invalid{color:#b4340b;font-weight:600}.dc-inherit{display:flex;gap:8px;align-items:center;margin:0 0 9px;color:#3b5470}.dc-inherit[hidden]{display:none}.dc-addrow{display:flex;gap:8px;align-items:center;margin:9px 0 0;flex-wrap:wrap}.dc-addrow input{min-width:200px;flex:1 1 200px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:7px;font:inherit}.status-picker{position:fixed;z-index:9000;min-width:200px;max-height:min(360px,70vh);overflow:auto;background:#fff;border:1px solid #cbd5e1;border-radius:9px;box-shadow:0 14px 32px #0b203c33;padding:6px}.status-picker-head{padding:5px 8px 7px;font-weight:700;color:#183b5c;font-size:12px;text-transform:uppercase;letter-spacing:.5px}.status-option{display:block;width:100%;text-align:left;border:0;background:transparent;padding:8px 9px;border-radius:6px;font:inherit;color:#1f3a55;cursor:pointer}.status-option:hover,.status-option:focus-visible{background:#e6f0ff;outline:none}.status-option.is-current{background:#dbeafe;font-weight:700}</style>
 </head>
 <body>
 <style>
@@ -429,7 +429,8 @@ table.grid tbody tr:last-child td{border-bottom:0}
     <h2 class="dc-card-title">⚡ Settings categories</h2><div class="dc-group-label">⌄ &nbsp; Data Collection</div>
     <button class="dc-cat active" data-category="quarters" type="button"><strong>▣ &nbsp; Quarters</strong><small>Which quarter tabs to display</small></button>
     <button class="dc-cat" data-category="layout" type="button"><strong>◇ &nbsp; Layout Setting</strong><small>Column grouping template</small></button>
-    <button class="dc-cat" data-category="tableviews" type="button"><strong>▤ &nbsp; Table Views</strong><small>Rows, sorting, columns and date format</small></button>
+    <button class="dc-cat" data-category="tableviews" type="button"><strong>▤ &nbsp; Table Views</strong><small>Rows, sorting and column sequence</small></button>
+    <button class="dc-cat" data-category="statuslist" type="button"><strong>≡ &nbsp; Status List</strong><small>Edit choices for the Status column</small></button>
     <button class="dc-cat" data-category="source" type="button"><strong>◈ &nbsp; Data source</strong><small>Connection and permissions</small></button>
    </nav>
    <article class="dc-card">
@@ -453,10 +454,16 @@ table.grid tbody tr:last-child td{border-bottom:0}
            <div id="columnSequenceList" class="dc-sort-list"></div>
            <button class="dc-add-sort" id="addSequenceColumn" type="button">+ Add column attribute</button>
            <p>Listed columns appear first in this order. Columns absent from the selected Layout Setting are skipped; unlisted visible columns follow in layout order.</p></div>
-         <div class="dc-rule-subtree"><h3>↳ Date Format</h3><select id="ruleDateFormat" aria-label="Date format"></select>
-           <p id="ruleDateHint"></p></div>
+         <div class="dc-rule-subtree"><h3>↳ Date Format</h3>
+           <label class="dc-inherit" id="ruleDateInheritRow"><input type="checkbox" id="ruleDateInherit" /> Inherit Default format</label>
+           <div class="dc-datefmt"><input type="text" id="ruleDateFormat" maxlength="40" spellcheck="false" autocomplete="off" placeholder="DD/MM/YYYY" aria-label="Date format pattern" /><span id="ruleDateSample" class="dc-datefmt-sample"></span></div>
+           <p id="ruleDateHint">Type the pattern you want using <strong>DD</strong>, <strong>MMM</strong>, <strong>MM</strong>, <strong>YYYY</strong> or <strong>YY</strong>; other characters such as / - . stay as typed.</p></div>
        </div>
      </section>
+     <section id="dcCategoryStatuslist" hidden><h4>Status values</h4>
+       <div id="statusListRows" class="dc-sort-list"></div>
+       <div class="dc-addrow"><input type="text" id="statusNewValue" maxlength="60" placeholder="New status value" aria-label="New status value" /><button class="btn" id="addStatusValue" type="button">Add status</button></div>
+       <p class="hint">These values become the choices offered when a manager edits the Status column on a quarter table. Order here is the order shown. A value already stored on a record stays selectable until it is changed.</p></section>
      <section id="dcCategorySource" hidden><h4>Cloudflare Worker connection</h4>
        <div class="dc-note">This page fetches data through a Cloudflare Worker. FileMaker credentials are held by the Worker, not editable or displayed here. The gear URL flag only requests UI visibility; manager authorisation is checked by the Worker for settings changes.</div></section>
     </div>
@@ -592,6 +599,7 @@ table.grid tbody tr:last-child td{border-bottom:0}
     quarters:  [],     // [{id,label,year,q,count}]
     visible:   {},     // quarterId -> bool
     template:  3,
+    statusList: ['Collecting','Correction','Excluded','No Submission','Processing','Reviewing','Uploaded'],
     tableViewRules: defaultTableViewRules(),
     tabs:      [],
     active:    'summary',
@@ -666,26 +674,35 @@ table.grid tbody tr:last-child td{border-bottom:0}
     if (m) return { y:+m[3] + 2000, mo:+m[1], d:+m[2] };
     return null;
   }
-  var DATE_FORMATS = ['dd mmm yy','dd/mm/yyyy','mm/dd/yyyy','yyyy-mm-dd','dd mmm yyyy'];
+  var MONTH_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var DATE_TOKEN = /YYYY|YY|MMMM|MMM|MM|DD|D|M/;
+  function isValidDateFormat(fmt){
+    return typeof fmt === 'string' && fmt.length > 0 && fmt.length <= 40 &&
+      /^[A-Za-z0-9 \/\-.,:;]+$/.test(fmt) && DATE_TOKEN.test(fmt);
+  }
   function fmtDate(v, fmt){
     var d = parseDate(v);
     if (!d) return v == null ? '' : String(v);
+    var pattern = isValidDateFormat(fmt) ? fmt : 'DD MMM YY';
     var mm = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.mo - 1] || '';
-    var dd = d.d < 10 ? '0' + d.d : String(d.d);
-    var mo = d.mo < 10 ? '0' + d.mo : String(d.mo);
-    var yyyy = String(d.y);
-    var yy = yyyy.slice(2);
-    switch (DATE_FORMATS.indexOf(fmt) < 0 ? 'dd mmm yy' : fmt) {
-      case 'dd/mm/yyyy': return dd + '/' + mo + '/' + yyyy;
-      case 'mm/dd/yyyy': return mo + '/' + dd + '/' + yyyy;
-      case 'yyyy-mm-dd': return yyyy + '-' + mo + '-' + dd;
-      case 'dd mmm yyyy': return dd + ' ' + mm + ' ' + yyyy;
-      default: return dd + ' ' + mm + ' ' + yy;
+    var pad = function(n){ return n < 10 ? '0' + n : String(n); };
+    var out = '';
+    for (var i = 0; i < pattern.length; ) {
+      var rest = pattern.slice(i);
+      var m = /^(YYYY|YY|MMMM|MMM|MM|DD|D|M)/i.exec(rest);
+      if (!m) { out += pattern.charAt(i); i += 1; continue; }
+      var token = m[1].toUpperCase();
+      if (token === 'YYYY') out += d.y;
+      else if (token === 'YY') out += String(d.y).slice(2);
+      else if (token === 'MMMM') out += MONTH_LONG[d.mo - 1] || mm;
+      else if (token === 'MMM') out += mm;
+      else if (token === 'MM') out += pad(d.mo);
+      else if (token === 'M') out += d.mo;
+      else if (token === 'DD') out += pad(d.d);
+      else out += d.d;
+      i += m[1].length;
     }
-  }
-  function dateFormatLabel(fmt){
-    var sample = fmtDate('2026-11-03', fmt);
-    return {label: (DATE_FORMATS.indexOf(fmt) < 0 ? 'DD MMM YY' : ['DD MMM YY','DD/MM/YYYY','MM/DD/YYYY','YYYY-MM-DD','DD MMM YYYY'][DATE_FORMATS.indexOf(fmt)]) + ' — ' + sample, sample: sample};
+    return out;
   }
 
   function identityCols(){
@@ -731,7 +748,7 @@ table.grid tbody tr:last-child td{border-bottom:0}
   }
   function runScript(name,param){
     if(name===CFG.scripts.savePrefs){var p=JSON.parse(param);return api('/api/prefs','POST',{
-      hiddenQuarters:p.hiddenQuarters?p.hiddenQuarters.split('\n'):[],groupingTpl:p.groupingTpl,tableViewRules:p.tableViewRules
+      hiddenQuarters:p.hiddenQuarters?p.hiddenQuarters.split('\n'):[],groupingTpl:p.groupingTpl,tableViewRules:p.tableViewRules,statusList:p.statusList
     });}
     if(name===CFG.scripts.close){window.close();return Promise.resolve();}
     return Promise.reject(new Error('Unknown operation'));
@@ -836,7 +853,7 @@ table.grid tbody tr:last-child td{border-bottom:0}
     return rows;
   }
   function defaultTableViewRules(){
-    return {default:{rowsPerPage:20,sorting:[{key:'__reminder',dir:-1},{key:'__submission',dir:-1}],columnSequence:[],dateFormat:'dd mmm yy'},
+    return {default:{rowsPerPage:20,sorting:[{key:'__reminder',dir:-1},{key:'__submission',dir:-1}],columnSequence:[],dateFormat:'DD MMM YY'},
       summary:{rowsPerPage:10,sorting:[{key:'Supplier',dir:1}],columnSequence:null,dateFormat:null},
       quarters:{rowsPerPage:null,sorting:null,columnSequence:null,dateFormat:null}};
   }
@@ -1054,6 +1071,7 @@ table.grid tbody tr:last-child td{border-bottom:0}
       td.title = display || '(empty)';
       td.addEventListener('click', function(){
         if (state.editing) return;
+        if (col.key === F.status) { openStatusPicker(tab, row, col, td); return; }
         beginEdit(tab, row, col, td);
       });
     } else if (display){
@@ -1070,6 +1088,42 @@ table.grid tbody tr:last-child td{border-bottom:0}
 
   /* ------------------------------------------------------------- cell editing */
 
+  var statusPicker=null;
+  function closeStatusPicker(){
+    if(statusPicker && statusPicker.parentNode) statusPicker.parentNode.removeChild(statusPicker);
+    statusPicker=null;
+    document.removeEventListener('mousedown',statusPickerOutside,true);
+    document.removeEventListener('keydown',statusPickerKey,true);
+  }
+  function statusPickerOutside(event){ if(statusPicker && !statusPicker.contains(event.target)) closeStatusPicker(); }
+  function statusPickerKey(event){ if(event.key==='Escape'){ event.preventDefault(); closeStatusPicker(); } }
+  function openStatusPicker(tab,row,col,td){
+    closeStatusPicker();
+    var current=row.fieldData[col.key]==null?'':String(row.fieldData[col.key]);
+    var values=(state.statusList||[]).slice();
+    if(current && values.indexOf(current)<0) values.push(current);
+    var pop=el('div',{class:'status-picker',role:'listbox','aria-label':'Status choices'});
+    pop.appendChild(el('div',{class:'status-picker-head',text:'Status'}));
+    values.forEach(function(value){
+      var option=el('button',{type:'button',class:'status-option'+(value===current?' is-current':''),text:value,role:'option'});
+      option.setAttribute('aria-selected',value===current?'true':'false');
+      option.addEventListener('click',function(){
+        stageField(tab,row,col,value);
+        closeStatusPicker();renderGrid();
+      });
+      pop.appendChild(option);
+    });
+    document.body.appendChild(pop);
+    var rect=td.getBoundingClientRect();
+    var left=Math.min(rect.left,window.innerWidth-pop.offsetWidth-10);
+    var top=rect.bottom+4+pop.offsetHeight>window.innerHeight?Math.max(8,rect.top-pop.offsetHeight-4):rect.bottom+4;
+    pop.style.left=Math.max(8,left)+'px';pop.style.top=top+'px';
+    statusPicker=pop;
+    setTimeout(function(){
+      document.addEventListener('mousedown',statusPickerOutside,true);
+      document.addEventListener('keydown',statusPickerKey,true);
+    },0);
+  }
   function beginEdit(tab, row, col, td){
     if (!state.editMode || state.saving || state.editing) return;
     var fd = row.fieldData || {};
@@ -1411,17 +1465,57 @@ table.grid tbody tr:last-child td{border-bottom:0}
     if(scope==='quarters')keys=keys.filter(function(key){return ![F.onboards,F.erpSpend,F.mbomSpend,F.comment].includes(key);});
     return keys.map(function(key){return {key:key,label:key==='__reminder'?'Reminder_count':key==='__submission'?'Submission_count':key};});
   }
+  function renderStatusList(){
+    var host=$('#statusListRows');host.innerHTML='';
+    state.statusList.forEach(function(value,index){
+      var row=el('div',{class:'dc-sort-rule'});
+      row.appendChild(el('span',{text:(index+1)+'.',title:'Choice order'}));
+      var field=el('input',{type:'text',class:'dc-sequence-field',maxlength:'60','aria-label':'Status value '+(index+1)});
+      field.value=value;
+      field.addEventListener('change',function(){
+        var next=this.value.trim();
+        if(!next){toast('A status value cannot be empty.',true);this.value=value;return;}
+        if(state.statusList.some(function(other,otherIndex){return otherIndex!==index&&other.toLowerCase()===next.toLowerCase();})){
+          toast('That status already exists.',true);this.value=value;return;
+        }
+        state.statusList[index]=next;renderStatusList();
+      });row.appendChild(field);
+      [['↑',-1],['↓',1]].forEach(function(move){
+        var b=el('button',{type:'button',text:move[0],title:'Move status '+(move[1]<0?'up':'down')});
+        b.disabled=index+move[1]<0||index+move[1]>=state.statusList.length;
+        b.addEventListener('click',function(){var j=index+move[1];[state.statusList[index],state.statusList[j]]=[state.statusList[j],state.statusList[index]];renderStatusList();});
+        row.appendChild(b);
+      });
+      var remove=el('button',{type:'button',text:'Remove',title:'Remove status'});
+      remove.addEventListener('click',function(){
+        if(state.statusList.length<=1){toast('Keep at least one status value.',true);return;}
+        state.statusList.splice(index,1);renderStatusList();
+      });row.appendChild(remove);
+      host.appendChild(row);
+    });
+  }
+  function addStatusValue(){
+    var input=$('#statusNewValue'),value=input.value.trim();
+    if(!value){toast('Type a status value first.',true);return;}
+    if(state.statusList.some(function(other){return other.toLowerCase()===value.toLowerCase();})){toast('That status already exists.',true);return;}
+    if(state.statusList.length>=40){toast('The Status list is limited to 40 values.',true);return;}
+    state.statusList.push(value);input.value='';renderStatusList();
+  }
   function renderDateFormat(){
     var rule=state.tableViewRules[ruleScope],isDefault=ruleScope==='default';
-    var select=$('#ruleDateFormat');select.innerHTML='';
-    if(!isDefault)select.appendChild(el('option',{value:'inherit',text:'Inherit Default ('+dateFormatLabel(state.tableViewRules.default.dateFormat).sample+')'}));
-    DATE_FORMATS.forEach(function(fmt){
-      var info=dateFormatLabel(fmt);
-      select.appendChild(el('option',{value:fmt,text:info.label}));
-    });
-    select.value=rule.dateFormat==null?'inherit':rule.dateFormat;
-    $('#ruleDateHint').textContent=isDefault?'Used for date columns in every tab unless a group overrides it.':
-      (rule.dateFormat==null?'Using the Default format.':'A specific format replaces Default for this group.');
+    var inherit=$('#ruleDateInherit'),input=$('#ruleDateFormat');
+    $('#ruleDateInheritRow').hidden=isDefault;
+    inherit.checked=!isDefault&&rule.dateFormat==null;
+    input.disabled=inherit.checked;
+    input.value=inherit.checked?state.tableViewRules.default.dateFormat:(rule.dateFormat||'DD MMM YY');
+    updateDateSample();
+  }
+  function updateDateSample(){
+    var input=$('#ruleDateFormat'),value=input.value.trim(),sample=$('#ruleDateSample');
+    var valid=isValidDateFormat(value);
+    sample.textContent=valid?'Sample: '+fmtDate('2026-11-03',value):'Add a token such as DD, MMM or YYYY.';
+    sample.classList.toggle('is-invalid',!valid);
+    input.setAttribute('aria-invalid',valid?'false':'true');
   }
   function columnSequenceOptions(scope){
     return sortOptions(scope).map(function(item){return {
@@ -1508,32 +1602,34 @@ table.grid tbody tr:last-child td{border-bottom:0}
   }
   var settingsOriginal=null, activeCategory='quarters';
   function showCategory(category){
-    if(['quarters','layout','tableviews','source'].indexOf(category)<0) return;
+    if(['quarters','layout','tableviews','statuslist','source'].indexOf(category)<0) return;
     if(category==='tableviews') renderTableViewRules();
+    if(category==='statuslist') renderStatusList();
     activeCategory=category;
     document.querySelectorAll('.dc-cat').forEach(function(button){
       var selected=button.dataset.category===category;
       button.classList.toggle('active',selected);button.setAttribute('aria-current',selected?'page':'false');
     });
-    ['Quarters','Layout','Tableviews','Source'].forEach(function(key){
+    ['Quarters','Layout','Tableviews','Statuslist','Source'].forEach(function(key){
       $('#dcCategory'+key).hidden=key.toLowerCase()!==category;
     });
     var labels={quarters:['Quarters','Select which quarter tabs appear on the DC page.'],
       layout:['Layout Setting','Choose a column grouping template.'],
-      tableviews:['Table Views','Set inherited rows-per-page, sorting, column-sequence and date-format rules.'],
+      tableviews:['Table Views','Set inherited rows, sorting, column-sequence and date-format rules.'],
+      statuslist:['Status List','Choose the values offered when editing Status.'],
       source:['Data source','Connection information and access policy.']};
     $('#dcDetailTitle').textContent=labels[category][0];
     $('#dcDetailSubtitle').textContent=labels[category][1];
   }
   function leaveSettings(discard){
-    if(discard && settingsOriginal){state.visible=settingsOriginal.visible;state.template=settingsOriginal.template;state.tableViewRules=settingsOriginal.tableViewRules;}
+    if(discard && settingsOriginal){state.visible=settingsOriginal.visible;state.template=settingsOriginal.template;state.tableViewRules=settingsOriginal.tableViewRules;state.statusList=settingsOriginal.statusList;}
     settingsOriginal=null;$('#dcSettings').hidden=true;$('#dcPage').hidden=false;
   }
   function saveSettings(){
     if(!state.user.canManage || !gearRequested) return;
     var hidden=state.quarters.filter(function(q){return !state.visible[q.id];}).map(function(q){return q.id;});
     var save=$('#btnSettingsSave');save.disabled=true;
-    runScript(CFG.scripts.savePrefs,JSON.stringify({hiddenQuarters:hidden.join('\n'),groupingTpl:state.template,tableViewRules:state.tableViewRules}))
+    runScript(CFG.scripts.savePrefs,JSON.stringify({hiddenQuarters:hidden.join('\n'),groupingTpl:state.template,tableViewRules:state.tableViewRules,statusList:state.statusList}))
       .then(function(){state.cache={};state.hiddenCols={};state.sorts={};state.pages={};state.pageSizes={};state.active='summary';buildTabs();renderTabs();renderGrid();leaveSettings(false);toast('Settings saved');})
       .catch(function(e){toast('Could not save settings: '+(e.message||e),true);})
       .finally(function(){save.disabled=false;});
@@ -1622,6 +1718,7 @@ table.grid tbody tr:last-child td{border-bottom:0}
       if (res && typeof res === 'object'){
         if (res.groupingTpl) state.template = Number(res.groupingTpl) || 3;
         if (res.tableViewRules) state.tableViewRules = res.tableViewRules;
+        if (Array.isArray(res.statusList) && res.statusList.length) state.statusList = res.statusList.slice();
       }
       return res || {};
     }).catch(function(){ return {}; });
@@ -1684,7 +1781,7 @@ table.grid tbody tr:last-child td{border-bottom:0}
     $('#btnClear').addEventListener('click',clearFilters);
     $('#btnColumns').addEventListener('click',function(){var menu=$('#columnMenu');menu.hidden=!menu.hidden;this.setAttribute('aria-expanded',String(!menu.hidden));if(!menu.hidden)renderColumns();});
     document.addEventListener('click',function(e){if(!e.target.closest('.dc-tools-wrap'))closeColumns();});
-    $('#btnGear').addEventListener('click', function(){if(state.user.canManage && gearRequested){settingsOriginal={visible:Object.assign({},state.visible),template:state.template,tableViewRules:JSON.parse(JSON.stringify(state.tableViewRules))};openSettings();}});
+    $('#btnGear').addEventListener('click', function(){if(state.user.canManage && gearRequested){settingsOriginal={visible:Object.assign({},state.visible),template:state.template,tableViewRules:JSON.parse(JSON.stringify(state.tableViewRules)),statusList:state.statusList.slice()};openSettings();}});
     $('#btnClose').addEventListener('click', function(){
       accessToken=''; state.hasBridge=false; state.cache={}; state.loading={}; state.pending={};
       state.editMode=false; state.editing=null; state.user={account:'',privilegeSet:'',canManage:false};
@@ -1701,8 +1798,21 @@ table.grid tbody tr:last-child td{border-bottom:0}
     $('#btnSettingsSave').addEventListener('click', saveSettings);
     $('#rulePageSize').addEventListener('change',function(){state.tableViewRules[ruleScope].rowsPerPage=this.value==='inherit'?null:Number(this.value);});
     $('#ruleSortMode').addEventListener('change',function(){state.tableViewRules[ruleScope].sorting=this.value==='inherit'?null:[];renderTableViewRules();});
+    $('#addStatusValue').addEventListener('click',addStatusValue);
+    $('#statusNewValue').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();addStatusValue();}});
+    $('#ruleDateInherit').addEventListener('change',function(){
+      var rule=state.tableViewRules[ruleScope];
+      rule.dateFormat=this.checked?null:(rule.dateFormat||state.tableViewRules.default.dateFormat);
+      renderDateFormat();
+    });
+    $('#ruleDateFormat').addEventListener('input',updateDateSample);
     $('#ruleDateFormat').addEventListener('change',function(){
-      state.tableViewRules[ruleScope].dateFormat=this.value==='inherit'?null:this.value;renderDateFormat();
+      var rule=state.tableViewRules[ruleScope],value=this.value.trim();
+      if(!isValidDateFormat(value)){
+        toast('Date format needs at least one token such as DD, MMM or YYYY.',true);
+        this.value=rule.dateFormat||state.tableViewRules.default.dateFormat;updateDateSample();return;
+      }
+      rule.dateFormat=value;updateDateSample();
     });
     $('#ruleColumnMode').addEventListener('change',function(){
       state.tableViewRules[ruleScope].columnSequence=this.value==='inherit'?null:[];renderColumnSequence();
